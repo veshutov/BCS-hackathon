@@ -1,0 +1,140 @@
+{{ $c := 0 | int }}
+{{- range .Values.classes }}
+{{ $c = add1 $c }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fullname" $ }}-{{ .shortName }}
+  labels:
+    {{- include "labels" $ | nindent 4 }}-{{ .shortName }}
+spec:
+  replicas: {{ $c }}
+  selector:
+    matchLabels:
+      {{- include "selectorLabels" $ | nindent 6 }}-{{ .shortName }}
+  template:
+    metadata:
+      {{- with $.Values.podAnnotations }}
+      annotations:
+        {{- toYaml $ | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "selectorLabels" $ | nindent 8 }}-{{ .shortName }}
+    spec:
+{{- if or ($.Values.postgresql.enabled) ($.Values.redis.enabled) ($.Values.kafka.enabled) ($.Values.memcached.enabled)}}
+      initContainers:
+{{- end }}
+{{- if $.Values.postgresql.enabled }}        
+        - name: postgres-check
+          imagePullPolicy: Always
+          image: bcs-gitlab.codenrock.com:5050/bcscd/images/init-client:main
+          command: ['sh', '-c', 'exec pg_isready --host postgresql']
+{{- end }}
+{{- if $.Values.redis.enabled }}
+        - name: redis-check
+          imagePullPolicy: Always
+          image: bcs-gitlab.codenrock.com:5050/bcscd/images/init-client:main
+          command: ['sh', '-c', 'until printf "." && nc -z -w 2 redis-master 6379; do sleep 2; done; echo "Redis OK"']
+{{- end }}
+{{- if $.Values.kafka.enabled }}
+        - name: kafka-check
+          imagePullPolicy: Always
+          image: bcs-gitlab.codenrock.com:5050/bcscd/images/init-client:main
+          command: ['sh', '-c', 'until printf "." && nc -z -w 2 kafka 9092; do sleep 2; done; echo "Kafka OK"']
+{{- end }}
+{{- if $.Values.kafka.enabled }}
+        - name: kafka-init
+          imagePullPolicy: Always
+          image: bcs-gitlab.codenrock.com:5050/bcscd/images/init-kafka:main
+          command: ['sh', '-c', '/tmp/init.sh']
+{{- end }}
+{{- if $.Values.memcached.enabled }}
+        - name: memcached-check
+          imagePullPolicy: Always
+          image: bcs-gitlab.codenrock.com:5050/bcscd/images/init-client:main
+          command: ['sh', '-c', 'until printf "." && nc -z -w 2 memcached 11211; do sleep 2; done; echo "Memecached OK"']
+{{- end }}
+      imagePullSecrets:
+        - name: regsecret
+      serviceAccountName: {{ include "serviceAccountName" $ }}
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ $.Chart.Name }}
+          securityContext:
+            {{- toYaml $.Values.securityContext | nindent 12 }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag | default $.Chart.AppVersion }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          env:
+            - name: APP_MODE
+              value: {{ .shortName }}
+{{- if $.Values.postgresql.enabled }}
+            - name: postgresql_host
+              value: {{ $.Values.postgresql.host | quote }}
+            - name: postgresql_port
+              value: {{ $.Values.postgresql.port | quote }}
+            - name: postgresql_database
+              value: {{ $.Values.postgresql.postgresqlDatabase }}              
+            - name: postgresql_user
+              value: {{ $.Values.postgresql.postgresqlUsername }}
+            - name: postgresql_password
+              value: {{ $.Values.postgresql.postgresqlPassword }}              
+{{- end }}
+{{- if $.Values.redis.enabled }}
+            - name: redis_host
+              value: {{ $.Values.redis.host | quote }}
+            - name: redis_port
+              value: {{ $.Values.redis.port | quote }}
+            - name: redis_user
+              value: {{ $.Values.redis.user }}
+            - name: redis_password
+              value: {{ $.Values.redis.password }}              
+{{- end }}
+{{- if $.Values.memcached.enabled }}
+            - name: memcached_host
+              value: {{ $.Values.memcached.host | quote }}
+            - name: memcached_port
+              value: {{ $.Values.memcached.port | quote }}    
+{{- end }}
+{{- if $.Values.kafka.enabled }}
+            - name: kafka_host
+              value: {{ $.Values.kafka.host | quote }}
+            - name: kafka_port
+              value: {{ $.Values.kafka.port | quote }}             
+{{- end }}    
+            - name: application_port
+              value: {{ $.Values.service.port | quote }}
+            - name: JAVA_EXT
+              value: -Djava.security.egd=file:/dev/./urandom -Duser.timezone=Europe/Moscow
+            - name: JAVA_MEM
+              value: -XX:InitialRAMPercentage=25 -XX:MaxRAMPercentage=45 -XX:CompressedClassSpaceSize=300m -XX:MinHeapFreeRatio=5 -XX:MaxHeapFreeRatio=10 -XX:-TieredCompilation -Xss256k -XX:+UseG1GC -XX:+UseStringDeduplication
+{{- range $key, $value := .extraValues }}
+            - name: {{ $key }}
+              value: {{ $value }}
+{{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $.Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            initialDelaySeconds: {{ $.Values.initialDelaySeconds }}
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 40
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ $.Values.service.port }}
+          readinessProbe:
+            initialDelaySeconds: {{ $.Values.initialDelaySeconds }}
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 40
+            httpGet:
+              path: /actuator/health/readiness
+              port: {{ $.Values.service.port }}
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+{{- end }}

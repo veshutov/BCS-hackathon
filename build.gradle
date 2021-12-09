@@ -1,0 +1,41 @@
+plugins {
+    id 'org.springframework.boot' version '2.5.6'
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+    id 'java'
+}
+
+group 'com.bcs.competition'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.kafka:spring-kafka'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'redis.clients:jedis:3.6.3'
+    implementation 'com.google.guava:guava:31.0.1-jre'
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.0.5'
+    implementation group: 'net.spy', name: 'spymemcached', version: '2.12.3'
+    implementation 'com.btmatthews.springboot:memcached-spring-boot-starter:1.0.0'
+
+    compileOnly 'org.projectlombok:lombok:1.18.22'
+    annotationProcessor 'org.projectlombok:lombok:1.18.22'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+}
+
+
+jar {
+    // Чтобы не создавался -plain.jar
+    enabled = false
+}
+
+test {
+    useJUnitPlatform()
+}
+

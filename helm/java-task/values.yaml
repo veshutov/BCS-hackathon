@@ -1,0 +1,33 @@
+## 
+classes:
+  - shortName: single
+    # ниже добавляются дополнительные переменные окружения для мс single в формате ключ-значение как представлено в текущем примере:
+    extraValues:
+        web_env: NONE
+        key2: value2
+  - shortName: scaled
+    ## именно этот класс будет всегда в 2 экземплярах
+    # ниже добавляются дополнительные переменные окружения для мс scaled в формате ключ-значение как представлено в текущем примере:
+    extraValues:
+        web_env: SERVLET
+        key4: value2
+## Время на разогрев сервиса(ов). Именно через столько секунд после запуска начнут проверяться readiness & liveness probes
+initialDelaySeconds: 15
+
+## Выбери на каком из "классов" у тебя выставлена клиентская АПИ. Именно его будем проверять и нагружать
+#memberService: single
+memberService: scaled
+
+## порт должен совпадать с портом, который ты используешь в сервисе
+service:
+  type: ClusterIP
+  port: 8080
+
+kafka:
+  enabled: true
+redis:
+  enabled: true
+memcached:
+  enabled: true
+postgresql:
+  enabled: false
